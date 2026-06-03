@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -105,7 +106,7 @@ fun ProfileScreen(navController: NavController) {
             // Units
             CardItem(icon = Icons.Outlined.DeviceThermostat, iconTint = MaterialTheme.colorScheme.onTertiaryContainer, iconBg = MaterialTheme.colorScheme.tertiaryContainer, title = "Units") {
                 UnitToggleRow(label = "Temperature", optA = "°C", optB = "°F", isASelected = true)
-                Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.surfaceVariant)
                 UnitToggleRow(label = "Distance", optA = "km", optB = "mi", isASelected = true)
             }
             Spacer(modifier = Modifier.height(24.dp))
@@ -151,7 +152,7 @@ fun ProfileScreen(navController: NavController) {
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.error),
                 contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp)
             ) {
-                Icon(Icons.Filled.Logout, contentDescription = null)
+                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Sign Out", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }

@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.BubbleChart
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mail
@@ -96,9 +96,9 @@ fun AuthScreen(navController: NavController) {
             }
             
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-                Divider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.surfaceVariant)
+                HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.surfaceVariant)
                 Text("or", modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline, fontWeight = FontWeight.Medium)
-                Divider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.surfaceVariant)
+                HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.surfaceVariant)
             }
             
             TextField(
@@ -173,7 +173,7 @@ fun AuthScreen(navController: NavController) {
             ) {
                 Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.Filled.ArrowForward, contentDescription = null)
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
             }
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -181,6 +181,12 @@ fun AuthScreen(navController: NavController) {
             Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
                 Text("Already have an account? ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Sign In", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { })
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            TextButton(onClick = { navController.navigate("dashboard") }) {
+                Text("Skip for now", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
             }
         }
     }

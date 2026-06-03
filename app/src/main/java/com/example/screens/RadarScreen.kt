@@ -23,10 +23,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RadarScreen() {
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true || permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            Toast.makeText(context, "Location updated", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) { // Dark background behind map
         // Background Map Image
         AsyncImage(
@@ -93,7 +112,13 @@ fun RadarScreen() {
                 FloatingActionButton(onClick = {}, containerColor = MaterialTheme.colorScheme.surfaceContainerLowest, shape = CircleShape, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Filled.Layers, contentDescription = "Layers", tint = MaterialTheme.colorScheme.primary)
                 }
-                FloatingActionButton(onClick = {}, containerColor = MaterialTheme.colorScheme.primary, shape = CircleShape, modifier = Modifier.size(48.dp)) {
+                FloatingActionButton(onClick = {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                        Toast.makeText(context, "Location updated", Toast.LENGTH_SHORT).show()
+                    } else {
+                        permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    }
+                }, containerColor = MaterialTheme.colorScheme.primary, shape = CircleShape, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Filled.MyLocation, contentDescription = "My Location", tint = Color.White)
                 }
             }
