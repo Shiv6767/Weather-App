@@ -35,6 +35,9 @@ import com.example.screens.DashboardScreen
 import com.example.screens.ProfileScreen
 import com.example.screens.RadarScreen
 import com.example.ui.theme.MyApplicationTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.viewmodel.WeatherViewModel
+import com.example.viewmodel.ProfileViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,6 +46,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyApplicationTheme {
                 val navController = rememberNavController()
+                val profileViewModel: ProfileViewModel = viewModel()
+                val profileState by profileViewModel.uiState.collectAsState()
+                val startDest = if (profileState.isLoggedIn) "dashboard" else "auth"
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = { 
@@ -54,14 +61,20 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = "auth",
+                        startDestination = startDest,
                         modifier = Modifier.padding(innerPadding)
                     ) {
-                        composable("auth") { AuthScreen(navController) }
-                        composable("dashboard") { DashboardScreen() }
-                        composable("radar") { RadarScreen() }
+                        composable("auth") { AuthScreen(navController, profileViewModel) }
+                        composable("dashboard") { 
+                            val weatherViewModel: WeatherViewModel = viewModel()
+                            DashboardScreen(weatherViewModel) 
+                        }
+                        composable("radar") { 
+                            val weatherViewModel: WeatherViewModel = viewModel()
+                            RadarScreen(weatherViewModel) 
+                        }
                         composable("alerts") { AlertsScreen() }
-                        composable("profile") { ProfileScreen(navController) }
+                        composable("profile") { ProfileScreen(navController, profileViewModel) }
                     }
                 }
             }
@@ -78,6 +91,7 @@ fun WeatherBottomNavBar(navController: NavHostController) {
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically

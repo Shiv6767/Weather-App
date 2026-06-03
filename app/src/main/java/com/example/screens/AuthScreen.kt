@@ -28,14 +28,19 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.viewmodel.ProfileViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AuthScreen(navController: NavController) {
+fun AuthScreen(navController: NavController, profileViewModel: ProfileViewModel) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var termsAccepted by remember { mutableStateOf(false) }
+    var isLoggingIn by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -86,13 +91,28 @@ fun AuthScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(32.dp))
             
             Button(
-                onClick = { navController.navigate("dashboard") },
+                onClick = { 
+                    coroutineScope.launch {
+                        isLoggingIn = true
+                        delay(1500) // Simulate network delay
+                        val userEmail = if (email.isNotBlank()) email else "user@gmail.com"
+                        profileViewModel.mockGoogleSignIn(userEmail)
+                        isLoggingIn = false
+                        navController.navigate("dashboard") {
+                            popUpTo("auth") { inclusive = true }
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest, contentColor = MaterialTheme.colorScheme.onSurface),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
             ) {
-                Text("Continue with Google", fontWeight = FontWeight.Bold)
+                if (isLoggingIn) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.primary)
+                } else {
+                    Text("Continue with Google", fontWeight = FontWeight.Bold)
+                }
             }
             
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -165,15 +185,30 @@ fun AuthScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(24.dp))
             
             Button(
-                onClick = { navController.navigate("dashboard") },
+                onClick = { 
+                    coroutineScope.launch {
+                        isLoggingIn = true
+                        delay(1500) // Simulate network delay
+                        val userEmail = if (email.isNotBlank()) email else "user@gmail.com"
+                        profileViewModel.updateProfile(userEmail.substringBefore("@"), userEmail)
+                        isLoggingIn = false
+                        navController.navigate("dashboard") {
+                            popUpTo("auth") { inclusive = true }
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
             ) {
-                Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                if (isLoggingIn) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                } else {
+                    Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                }
             }
             
             Spacer(modifier = Modifier.height(24.dp))

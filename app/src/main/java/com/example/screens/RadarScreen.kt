@@ -24,23 +24,84 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.tasks.CancellationTokenSource
+import android.location.Geocoder
+import java.util.Locale
+import android.os.Build
+
+import com.example.viewmodel.WeatherViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RadarScreen() {
+fun RadarScreen(viewModel: WeatherViewModel) {
+    val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var locationText by remember { mutableStateOf("New Delhi, IN") }
+    var searchQuery by remember { mutableStateOf("") }
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    @SuppressLint("MissingPermission")
+    fun fetchLocation() {
+        val cancellationTokenSource = CancellationTokenSource()
+        fusedLocationClient.getCurrentLocation(com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+            .addOnSuccessListener { location ->
+                if (location != null) {
+                    viewModel.fetchWeatherForLocation(location.latitude, location.longitude)
+                    try {
+                        val geocoder = Geocoder(context, Locale.getDefault())
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            geocoder.getFromLocation(location.latitude, location.longitude, 1) { addresses ->
+                                val address = addresses.firstOrNull()
+                                val neighborhood = address?.subLocality
+                                val city = address?.locality ?: address?.subAdminArea ?: "Unknown City"
+                                val displayCity = if (!neighborhood.isNullOrEmpty()) neighborhood else city
+                                val country = address?.countryCode ?: ""
+                                val newLoc = if (country.isNotEmpty()) "$displayCity, $country" else displayCity
+                                locationText = newLoc
+                                viewModel.setLocationName(newLoc)
+                                Toast.makeText(context, "Location updated", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                            val address = addresses?.firstOrNull()
+                            val neighborhood = address?.subLocality
+                            val city = address?.locality ?: address?.subAdminArea ?: "Unknown City"
+                            val displayCity = if (!neighborhood.isNullOrEmpty()) neighborhood else city
+                            val country = address?.countryCode ?: ""
+                            val newLoc = if (country.isNotEmpty()) "$displayCity, $country" else displayCity
+                            locationText = newLoc
+                            viewModel.setLocationName(newLoc)
+                            Toast.makeText(context, "Location updated", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        val newLoc = "${String.format("%.2f", location.latitude)}, ${String.format("%.2f", location.longitude)}"
+                        locationText = newLoc
+                        viewModel.setLocationName(newLoc)
+                        Toast.makeText(context, "Location updated (Coordinates only)", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(context, "Could not find location. Ensure GPS is ON.", Toast.LENGTH_LONG).show()
+                }
+            }.addOnFailureListener {
+                Toast.makeText(context, "Failed to get location: ${it.message}", Toast.LENGTH_LONG).show()
+            }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true || permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
-            Toast.makeText(context, "Location updated", Toast.LENGTH_SHORT).show()
+            fetchLocation()
         } else {
             Toast.makeText(context, "Permission denied", Toast.LENGTH_SHORT).show()
         }
@@ -69,7 +130,7 @@ fun RadarScreen() {
                 IconButton(onClick = {}) {
                     Icon(Icons.Filled.LocationOn, contentDescription = "Location", tint = MaterialTheme.colorScheme.primary)
                 }
-                Text("New Delhi, IN", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+                Text(locationText, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
                 IconButton(onClick = {}) {
                     Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -78,8 +139,8 @@ fun RadarScreen() {
             // Search Overlay
             Box(modifier = Modifier.padding(24.dp)) {
                 TextField(
-                    value = "",
-                    onValueChange = {},
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
                     placeholder = { Text("Search locations...", color = MaterialTheme.colorScheme.outline) },
                     leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)) },
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp)),
@@ -91,7 +152,15 @@ fun RadarScreen() {
                     ),
                     trailingIcon = {
                         Button(
-                            onClick = { },
+                            onClick = { 
+                                if (searchQuery.isNotBlank()) {
+                                    viewModel.setLocationName(searchQuery)
+                                    locationText = searchQuery
+                                    Toast.makeText(context, "Showing results for $searchQuery", Toast.LENGTH_SHORT).show()
+                                    // For real implementation, we'd geocode this to lat/lng and fetch weather
+                                    searchQuery = ""
+                                }
+                            },
                             modifier = Modifier.padding(end = 8.dp),
                             shape = CircleShape,
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
@@ -113,8 +182,8 @@ fun RadarScreen() {
                     Icon(Icons.Filled.Layers, contentDescription = "Layers", tint = MaterialTheme.colorScheme.primary)
                 }
                 FloatingActionButton(onClick = {
-                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                        Toast.makeText(context, "Location updated", Toast.LENGTH_SHORT).show()
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                        fetchLocation()
                     } else {
                         permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                     }
@@ -136,8 +205,12 @@ fun RadarScreen() {
                 Column {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                         Column {
-                            Text("Central Connaught", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Text("Precipitation starting in 15m", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.tertiary)
+                            Text(state.locationName, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
+                            if (state.isLoading) {
+                                Text("Fetching live data...", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.tertiary)
+                            } else {
+                                Text(state.weatherDesc, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.tertiary)
+                            }
                         }
                         Box(modifier = Modifier.background(MaterialTheme.colorScheme.errorContainer, CircleShape).padding(8.dp)) {
                             Icon(Icons.Outlined.Warning, contentDescription = "Warning", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp))
@@ -148,8 +221,8 @@ fun RadarScreen() {
                     
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                         Column {
-                            Text("28°", fontSize = 36.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-                            Text("FEELS LIKE 32°", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 2.sp)
+                            Text(if (state.isLoading) "--°" else "${state.temperature.toInt()}°", fontSize = 36.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                            Text(if (state.isLoading) "FEELS LIKE --°" else "FEELS LIKE ${state.feelsLike.toInt()}°", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 2.sp)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
@@ -158,7 +231,7 @@ fun RadarScreen() {
                             ) {
                                 Icon(Icons.Outlined.WaterDrop, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("85%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text(if (state.isLoading) "--%" else "${state.precipitation}mm", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                             }
                             Row(
                                 modifier = Modifier.background(MaterialTheme.colorScheme.tertiaryContainer, CircleShape).padding(horizontal = 12.dp, vertical = 6.dp),
@@ -166,7 +239,7 @@ fun RadarScreen() {
                             ) {
                                 Icon(Icons.Outlined.Air, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("12km/h", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                Text(if (state.isLoading) "--" else "${state.windSpeed}km/h", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
                             }
                         }
                     }

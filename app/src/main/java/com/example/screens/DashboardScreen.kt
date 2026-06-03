@@ -25,9 +25,78 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.viewmodel.WeatherViewModel
+import android.Manifest
+import android.content.pm.PackageManager
+import android.annotation.SuppressLint
+import android.location.Geocoder
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.tasks.CancellationTokenSource
+import java.util.Locale
 
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(viewModel: WeatherViewModel) {
+    val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    @SuppressLint("MissingPermission")
+    fun fetchLocationAndWeather() {
+        val cancellationTokenSource = CancellationTokenSource()
+        fusedLocationClient.getCurrentLocation(com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+            .addOnSuccessListener { location ->
+                if (location != null) {
+                    viewModel.fetchWeatherForLocation(location.latitude, location.longitude)
+                    try {
+                        val geocoder = Geocoder(context, Locale.getDefault())
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            geocoder.getFromLocation(location.latitude, location.longitude, 1) { addresses ->
+                                val address = addresses.firstOrNull()
+                                val neighborhood = address?.subLocality
+                                val city = address?.locality ?: address?.subAdminArea ?: "Unknown City"
+                                val displayCity = if (!neighborhood.isNullOrEmpty()) neighborhood else city
+                                val country = address?.countryCode ?: ""
+                                viewModel.setLocationName(if (country.isNotEmpty()) "$displayCity, $country" else displayCity)
+                            }
+                        } else {
+                            val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                            val address = addresses?.firstOrNull()
+                            val neighborhood = address?.subLocality
+                            val city = address?.locality ?: address?.subAdminArea ?: "Unknown City"
+                            val displayCity = if (!neighborhood.isNullOrEmpty()) neighborhood else city
+                            val country = address?.countryCode ?: ""
+                            viewModel.setLocationName(if (country.isNotEmpty()) "$displayCity, $country" else displayCity)
+                        }
+                    } catch (e: Exception) {
+                        viewModel.setLocationName("${String.format("%.2f", location.latitude)}, ${String.format("%.2f", location.longitude)}")
+                    }
+                }
+            }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true || permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            fetchLocationAndWeather()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            fetchLocationAndWeather()
+        } else {
+            permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -50,7 +119,7 @@ fun DashboardScreen() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.LocationOn, contentDescription = "Location", tint = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("New Delhi, IN", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                Text(state.locationName, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
             }
             Icon(Icons.Outlined.CalendarToday, contentDescription = "Calendar", tint = MaterialTheme.colorScheme.tertiary)
         }
@@ -65,26 +134,33 @@ fun DashboardScreen() {
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Filled.WbSunny, contentDescription = "Sunny", modifier = Modifier.size(100.dp), tint = MaterialTheme.colorScheme.tertiary)
-                Row(verticalAlignment = Alignment.Top) {
-                    Text("32°", fontSize = 100.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, lineHeight = 100.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(
-                        modifier = Modifier
-                            .background(Color(0xFFff9800), RoundedCornerShape(16.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("AQI", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("152", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                if (state.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(50.dp).padding(bottom = 16.dp))
+                    Text("Fetching Live Weather...", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Icon(state.weatherIcon, contentDescription = state.weatherDesc, modifier = Modifier.size(100.dp), tint = MaterialTheme.colorScheme.tertiary)
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text("${state.temperature.toInt()}°", fontSize = 100.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, lineHeight = 100.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(
+                            modifier = Modifier
+                                .background(Color(0xFFff9800), RoundedCornerShape(16.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("AQI", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("${state.aqi}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
                     }
-                }
-                Text("Sunny", fontSize = 28.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
-                Text("Poor air quality. Avoid prolonged outdoor exercise today.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp, bottom = 24.dp))
+                    Text(state.weatherDesc, fontSize = 28.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
+                    
+                    val insight = if (state.aqi > 100) "Poor air quality. Avoid prolonged outdoor exercise today." else "Great weather! Enjoy the outdoors."
+                    Text(insight, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp, bottom = 24.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ChipItem(icon = Icons.Outlined.DeviceThermostat, text = "Feels 35°", tint = MaterialTheme.colorScheme.primary)
-                    ChipItem(icon = Icons.Outlined.WaterDrop, text = "42%", tint = MaterialTheme.colorScheme.tertiary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        ChipItem(icon = Icons.Outlined.DeviceThermostat, text = "Feels ${state.feelsLike.toInt()}°", tint = MaterialTheme.colorScheme.primary)
+                        ChipItem(icon = Icons.Outlined.Air, text = "${state.windSpeed} km/h", tint = MaterialTheme.colorScheme.tertiary)
+                    }
                 }
             }
         }

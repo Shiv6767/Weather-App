@@ -23,9 +23,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.navigation.NavController
+import com.example.viewmodel.ProfileViewModel
+import androidx.compose.runtime.*
+import androidx.compose.ui.window.Dialog
 
 @Composable
-fun ProfileScreen(navController: NavController) {
+fun ProfileScreen(navController: NavController, profileViewModel: ProfileViewModel) {
+    val state by profileViewModel.uiState.collectAsState()
+    var showEditDialog by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -68,7 +73,7 @@ fun ProfileScreen(navController: NavController) {
                         .border(4.dp, MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape)
                 )
                 FloatingActionButton(
-                    onClick = {},
+                    onClick = { showEditDialog = true },
                     modifier = Modifier.size(40.dp).offset(x = 4.dp, y = 4.dp),
                     shape = CircleShape,
                     containerColor = MaterialTheme.colorScheme.primary
@@ -77,8 +82,8 @@ fun ProfileScreen(navController: NavController) {
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Maya Silva", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Text("Free Member", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.tertiary)
+            Text(state.name, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(if (state.email.isNotBlank()) state.email else "Free Member", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.tertiary)
             Spacer(modifier = Modifier.height(32.dp))
 
             // Preferred Locations
@@ -145,6 +150,7 @@ fun ProfileScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(32.dp))
             Button(
                 onClick = { 
+                    profileViewModel.signOut()
                     navController.navigate("auth") {
                         popUpTo("dashboard") { inclusive = true }
                     }
@@ -156,6 +162,46 @@ fun ProfileScreen(navController: NavController) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Sign Out", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
+        }
+
+        if (showEditDialog) {
+            var editName by remember { mutableStateOf(state.name) }
+            var editEmail by remember { mutableStateOf(state.email) }
+            
+            AlertDialog(
+                onDismissRequest = { showEditDialog = false },
+                title = { Text("Edit Profile") },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = editName,
+                            onValueChange = { editName = it },
+                            label = { Text("Name") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = editEmail,
+                            onValueChange = { editEmail = it },
+                            label = { Text("Email") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { 
+                        profileViewModel.updateProfile(editName, editEmail)
+                        showEditDialog = false 
+                    }) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEditDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }
